@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>XIAO Macropad — Keymap Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e17;
+    --panel:#0f1522;
+    --panel-2:#121a2b;
+    --trace:#c8402f;
+    --trace-dim:#5a2018;
+    --pad:#3ee0ea;
+    --pad-dim:#1c4a4d;
+    --silk:#e8d34a;
+    --text:#cfd8e3;
+    --text-dim:#6b7688;
+    --accent:#3ee0ea;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(circle at 1px 1px, #1a2333 1px, transparent 1px);
+    background-size:22px 22px;
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    min-height:100vh;
+    padding:28px;
+  }
+  header{
+    margin-bottom:22px;
+  }
+  h1{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:0.5px;
+    color:#eef3f8;
+    margin:0 0 4px 0;
+  }
+  h1 span{color:var(--accent);}
+  .sub{
+    color:var(--text-dim);
+    font-size:13px;
+    letter-spacing:0.5px;
+  }
+  .layout{
+    display:grid;
+    grid-template-columns:1fr 380px;
+    gap:20px;
+    align-items:start;
+  }
+  @media (max-width:880px){
+    .layout{grid-template-columns:1fr;}
+  }
+  .board{
+    background:var(--panel);
+    border:1px solid #1c2739;
+    border-radius:10px;
+    padding:30px;
+    position:relative;
+    overflow:hidden;
+  }
+  .board::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      linear-gradient(90deg, transparent 0, transparent 100%);
+    pointer-events:none;
+  }
+  svg.wiring{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+  }
+  .trace{
+    stroke:var(--trace-dim);
+    stroke-width:2;
+    fill:none;
+  }
+  .trace.active{
+    stroke:var(--trace);
+    filter:drop-shadow(0 0 3px rgba(200,64,47,0.6));
+  }
+  .mcu{
+    position:relative;
+    z-index:2;
+    width:150px;
+    margin:0 auto 46px auto;
+    border:1px solid var(--silk);
+    border-radius:4px;
+    padding:12px 10px;
+    text-align:center;
+    background:#0d1420;
+  }
+  .mcu .name{
+    font-family:'Chakra Petch',sans-serif;
+    color:var(--silk);
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:0.5px;
+  }
+  .mcu .tag{
+    color:var(--text-dim);
+    font-size:10px;
+    margin-top:2px;
+  }
+  .grid{
+    position:relative;
+    z-index:2;
+    display:grid;
+    grid-template-columns:repeat(3, 96px);
+    grid-auto-rows:96px;
+    gap:34px;
+    justify-content:center;
+  }
+  .pad{
+    position:relative;
+    border:1.5px solid #274056;
+    border-radius:6px;
+    background:radial-gradient(circle at 50% 50%, #0e1b22 0%, #0a1319 70%);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+  }
+  .pad:hover{
+    border-color:var(--pad);
+    box-shadow:0 0 14px rgba(62,224,234,0.25);
+    transform:translateY(-1px);
+  }
+  .pad.selected{
+    border-color:var(--pad);
+    box-shadow:0 0 0 2px rgba(62,224,234,0.15), 0 0 18px rgba(62,224,234,0.4);
+  }
+  .pad .hole{
+    position:absolute;
+    width:7px;height:7px;
+    border-radius:50%;
+    background:#3a2a12;
+    border:1px solid var(--silk);
+    opacity:0.55;
+  }
+  .pad .hole.tl{top:6px;left:6px;}
+  .pad .hole.tr{top:6px;right:6px;}
+  .pad .hole.bl{bottom:6px;left:6px;}
+  .pad .hole.br{bottom:6px;right:6px;}
+  .pad .plunger{
+    width:40px;height:40px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #64e9f0, #0f6a72 75%);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:inset 0 0 10px rgba(0,0,0,0.4);
+  }
+  .pad .keycode{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;
+    font-size:14px;
+    color:#03282b;
+  }
+  .pad .sw-label{
+    position:absolute;
+    bottom:-20px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:10px;
+    color:var(--silk);
+    letter-spacing:1px;
+    opacity:0.8;
+  }
+  .empty-slot{ }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid #1c2739;
+    border-radius:10px;
+    padding:18px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .panel h2{
+    font-family:'Chakra Petch',sans-serif;
+    font-size:14px;
+    letter-spacing:1px;
+    color:var(--text-dim);
+    margin:0;
+    text-transform:uppercase;
+  }
+  pre#codeOut{
+    background:#080c14;
+    border:1px solid #1c2739;
+    border-radius:6px;
+    padding:14px;
+    font-size:12px;
+    line-height:1.55;
+    overflow-x:auto;
+    color:#9fd8de;
+    max-height:340px;
+    overflow-y:auto;
+  }
+  .code-actions{
+    display:flex;
+    gap:8px;
+  }
+  button.btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.5px;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid #274056;
+    border-radius:6px;
+    padding:9px 12px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+    flex:1;
+  }
+  button.btn:hover{
+    border-color:var(--accent);
+    color:#eef3f8;
+  }
+  .hint{
+    color:var(--text-dim);
+    font-size:11.5px;
+    line-height:1.5;
+  }
+  .side{
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+  }
+  .flash-step{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .step-label{
+    font-size:12px;
+    color:var(--text);
+    line-height:1.5;
+  }
+  .step-num{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:16px;height:16px;
+    border-radius:50%;
+    background:var(--panel-2);
+    border:1px solid var(--accent);
+    color:var(--accent);
+    font-size:10px;
+    font-weight:600;
+    margin-right:7px;
+  }
+  .file-input{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    color:var(--text-dim);
+  }
+  .flash-status{
+    font-size:12px;
+    line-height:1.5;
+    min-height:16px;
+  }
+  .flash-status.ok{color:var(--accent);}
+  .flash-status.err{color:var(--trace);}
+
+  /* Picker overlay */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(4,7,12,0.72);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:10;
+    padding:20px;
+  }
+  .overlay.open{display:flex;}
+  .picker{
+    background:var(--panel);
+    border:1px solid #24344a;
+    border-radius:10px;
+    width:100%;
+    max-width:560px;
+    max-height:80vh;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .picker-head{
+    padding:16px 18px 10px 18px;
+    border-bottom:1px solid #1c2739;
+  }
+  .picker-head .title{
+    font-family:'Chakra Petch',sans-serif;
+    font-size:15px;
+    color:#eef3f8;
+    margin-bottom:8px;
+  }
+  .picker-head input{
+    width:100%;
+    background:#080c14;
+    border:1px solid #274056;
+    border-radius:6px;
+    padding:9px 10px;
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+  }
+  .picker-head input:focus{outline:none; border-color:var(--accent);}
+  .picker-body{
+    padding:14px 18px 18px 18px;
+    overflow-y:auto;
+  }
+  .cat-label{
+    color:var(--silk);
+    font-size:11px;
+    letter-spacing:1px;
+    margin:14px 0 8px 0;
+    text-transform:uppercase;
+  }
+  .cat-label:first-child{margin-top:0;}
+  .key-grid{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .key-chip{
+    background:var(--panel-2);
+    border:1px solid #274056;
+    border-radius:5px;
+    padding:6px 10px;
+    font-size:12px;
+    color:var(--text);
+    cursor:pointer;
+  }
+  .key-chip:hover{
+    border-color:var(--accent);
+    color:#eef3f8;
+  }
+  .close-x{
+    position:absolute;
+    top:10px; right:12px;
+    color:var(--text-dim);
+    cursor:pointer;
+    font-size:16px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>XIAO MACROPAD <span>// KEYMAP</span></h1>
+  <div class="sub">7 switches · direct-wired · click a pad to assign a keycode</div>
+</header>
+
+<div class="layout">
+  <div class="board">
+    <svg class="wiring" id="wiring"></svg>
+    <div class="mcu">
+      <div class="name">SEEED XIAO</div>
+      <div class="tag">RP2040</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>Generated keymap.c</h2>
+      <pre id="codeOut"></pre>
+      <div class="code-actions">
+        <button class="btn" id="copyBtn">Copy code</button>
+        <button class="btn" id="downloadBtn">Download file</button>
+      </div>
+      <div class="hint">Drop this into <b>keyboards/xiao_macropad/keymaps/default/keymap.c</b>, then <code>qmk compile -kb xiao_macropad -km default</code>.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Flash to board</h2>
+      <div class="hint" id="flashSupport"></div>
+
+      <div class="flash-step">
+        <div class="step-label"><span class="step-num">1</span>Put the XIAO in bootloader mode — double-tap reset. An <b>RPI-RP2</b> drive should appear on your computer.</div>
+      </div>
+
+      <div class="flash-step">
+        <div class="step-label"><span class="step-num">2</span>Choose the compiled firmware</div>
+        <input type="file" id="uf2Input" accept=".uf2" class="file-input">
+        <div class="hint">This is the <code>.uf2</code> produced by <code>qmk compile</code> — this tool can't compile C code itself, only push a finished build.</div>
+      </div>
+
+      <div class="flash-step">
+        <div class="step-label"><span class="step-num">3</span>Select the board drive and flash</div>
+        <button class="btn" id="connectBtn">Select RPI-RP2 drive</button>
+        <button class="btn" id="flashBtn" disabled>Flash now</button>
+      </div>
+
+      <div class="flash-status" id="flashStatus"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="picker">
+    <div class="picker-head">
+      <span class="close-x" id="closeX">✕</span>
+      <div class="title" id="pickerTitle">Assign a key</div>
+      <input type="text" id="search" placeholder="Search keycodes… (e.g. enter, f5, volume)">
+    </div>
+    <div class="picker-body" id="pickerBody"></div>
+  </div>
+</div>
+
+<script>
+const LAYOUT_SLOTS = [
+  {id:'SW1', col:0, row:0},
+  {id:'SW2', col:1, row:0},
+  {id:'SW3', col:2, row:0},
+  {id:'SW4', col:0, row:1},
+  {id:'SW5', col:1, row:1},
+  {id:'SW6', col:2, row:1},
+  {id:'SW7', col:0, row:2},
+];
+
+const LIBRARY = [
+  {cat:'Letters', keys: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c=>({code:'KC_'+c, label:c}))},
+  {cat:'Numbers', keys: '1234567890'.split('').map(c=>({code:'KC_'+c, label:c}))},
+  {cat:'Editing', keys:[
+    {code:'KC_ENT', label:'Enter'}, {code:'KC_ESC', label:'Esc'}, {code:'KC_TAB', label:'Tab'},
+    {code:'KC_SPC', label:'Space'}, {code:'KC_BSPC', label:'Backspace'}, {code:'KC_DEL', label:'Delete'},
+  ]},
+  {cat:'Arrows', keys:[
+    {code:'KC_UP', label:'↑ Up'}, {code:'KC_DOWN', label:'↓ Down'},
+    {code:'KC_LEFT', label:'← Left'}, {code:'KC_RGHT', label:'→ Right'},
+  ]},
+  {cat:'Modifiers', keys:[
+    {code:'KC_LSFT', label:'L-Shift'}, {code:'KC_LCTL', label:'L-Ctrl'},
+    {code:'KC_LALT', label:'L-Alt'}, {code:'KC_LGUI', label:'L-Gui'}, {code:'KC_RSFT', label:'R-Shift'},
+  ]},
+  {cat:'Function', keys: Array.from({length:12},(_,i)=>({code:'KC_F'+(i+1), label:'F'+(i+1)}))},
+  {cat:'Media', keys:[
+    {code:'KC_MUTE', label:'Mute'}, {code:'KC_VOLU', label:'Vol +'}, {code:'KC_VOLD', label:'Vol −'},
+    {code:'KC_MPLY', label:'Play/Pause'}, {code:'KC_MNXT', label:'Next'}, {code:'KC_MPRV', label:'Prev'},
+  ]},
+  {cat:'Symbols', keys:[
+    {code:'KC_MINS', label:'-'}, {code:'KC_EQL', label:'='}, {code:'KC_LBRC', label:'['},
+    {code:'KC_RBRC', label:']'}, {code:'KC_BSLS', label:'\\'}, {code:'KC_SCLN', label:';'},
+    {code:'KC_QUOT', label:"'"}, {code:'KC_COMM', label:','}, {code:'KC_DOT', label:'.'},
+    {code:'KC_SLSH', label:'/'}, {code:'KC_GRV', label:'`'},
+  ]},
+];
+const ALL_KEYS = LIBRARY.flatMap(g => g.keys.map(k => ({...k, cat:g.cat})));
+
+let state = ['KC_1','KC_2','KC_3','KC_4','KC_5','KC_6','KC_7'];
+let activeSlot = null;
+
+const grid = document.getElementById('grid');
+const wiring = document.getElementById('wiring');
+
+function short(code){
+  const found = ALL_KEYS.find(k=>k.code===code);
+  return found ? found.label : code.replace('KC_','');
+}
+
+function renderPads(){
+  grid.innerHTML = '';
+  LAYOUT_SLOTS.forEach((slot, i) => {
+    const pad = document.createElement('div');
+    pad.className = 'pad';
+    pad.style.gridColumn = slot.col + 1;
+    pad.style.gridRow = slot.row + 1;
+    pad.dataset.index = i;
+    pad.innerHTML = `
+      <div class="hole tl"></div><div class="hole tr"></div>
+      <div class="hole bl"></div><div class="hole br"></div>
+      <div class="plunger"><span class="keycode">${short(state[i])}</span></div>
+      <div class="sw-label">${slot.id}</div>
+    `;
+    pad.addEventListener('click', () => openPicker(i));
+    grid.appendChild(pad);
+  });
+  drawWiring();
+}
+
+function drawWiring(){
+  wiring.innerHTML = '';
+  const boardRect = document.querySelector('.board').getBoundingClientRect();
+  const mcuRect = document.querySelector('.mcu').getBoundingClientRect();
+  const mcuX = mcuRect.left + mcuRect.width/2 - boardRect.left;
+  const mcuY = mcuRect.bottom - boardRect.top;
+
+  document.querySelectorAll('.pad').forEach((pad, i) => {
+    const r = pad.getBoundingClientRect();
+    const px = r.left + r.width/2 - boardRect.left;
+    const py = r.top - boardRect.top;
+    const midY = mcuY + (py - mcuY) * 0.4;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('class','trace' + (pad.classList.contains('selected') ? ' active' : ''));
+    path.setAttribute('d', `M ${mcuX} ${mcuY} L ${mcuX} ${midY} L ${px} ${midY} L ${px} ${py}`);
+    wiring.appendChild(path);
+  });
+}
+
+function openPicker(index){
+  activeSlot = index;
+  document.getElementById('pickerTitle').textContent = `Assign a key — ${LAYOUT_SLOTS[index].id}`;
+  document.getElementById('search').value = '';
+  renderPickerBody('');
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('search').focus();
+}
+
+function renderPickerBody(query){
+  const body = document.getElementById('pickerBody');
+  body.innerHTML = '';
+  const q = query.trim().toLowerCase();
+  LIBRARY.forEach(group => {
+    const matches = group.keys.filter(k =>
+      !q || k.label.toLowerCase().includes(q) || k.code.toLowerCase().includes(q)
+    );
+    if(matches.length === 0) return;
+    const label = document.createElement('div');
+    label.className = 'cat-label';
+    label.textContent = group.cat;
+    body.appendChild(label);
+    const rowWrap = document.createElement('div');
+    rowWrap.className = 'key-grid';
+    matches.forEach(k => {
+      const chip = document.createElement('div');
+      chip.className = 'key-chip';
+      chip.textContent = k.label;
+      chip.addEventListener('click', () => {
+        state[activeSlot] = k.code;
+        document.getElementById('overlay').classList.remove('open');
+        renderPads();
+        renderCode();
+      });
+      rowWrap.appendChild(chip);
+    });
+    body.appendChild(rowWrap);
+  });
+}
+
+document.getElementById('search').addEventListener('input', e => renderPickerBody(e.target.value));
+document.getElementById('closeX').addEventListener('click', () => document.getElementById('overlay').classList.remove('open'));
+document.getElementById('overlay').addEventListener('click', e => { if(e.target.id==='overlay') e.target.classList.remove('open'); });
+
+function renderCode(){
+  const code = `#include QMK_KEYBOARD_H
+
+const uint16_t PROGMEM keymaps[MATRIX_LAYERS][MATRIX_ROWS][MATRIX_COLS] = {
+    [0] = LAYOUT(
+        ${state[0]}, ${state[1]}, ${state[2]},
+        ${state[3]}, ${state[4]}, ${state[5]},
+        ${state[6]}
+    )
+};
+
+#ifdef OLED_ENABLE
+bool oled_task_user(void) {
+    oled_write_ln_P(PSTR("XIAO Macropad"), false);
+    oled_write_ln_P(PSTR("7 keys ready"), false);
+    return false;
+}
+#endif
+`;
+  document.getElementById('codeOut').textContent = code;
+  return code;
+}
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  navigator.clipboard.writeText(renderCode());
+  const btn = document.getElementById('copyBtn');
+  const old = btn.textContent;
+  btn.textContent = 'Copied ✓';
+  setTimeout(()=>btn.textContent = old, 1200);
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([renderCode()], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'keymap.c';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ---- Flash to board (File System Access API) ----
+let boardDirHandle = null;
+let uf2File = null;
+
+const flashSupportEl = document.getElementById('flashSupport');
+const connectBtn = document.getElementById('connectBtn');
+const flashBtn = document.getElementById('flashBtn');
+const flashStatus = document.getElementById('flashStatus');
+const uf2Input = document.getElementById('uf2Input');
+
+const fsAccessSupported = 'showDirectoryPicker' in window;
+flashSupportEl.textContent = fsAccessSupported
+  ? 'Supported in this browser (Chrome / Edge, desktop).'
+  : 'Your browser doesn\'t support this — use Chrome or Edge on desktop, or just drag the .uf2 onto the RPI-RP2 drive manually.';
+connectBtn.disabled = !fsAccessSupported;
+
+uf2Input.addEventListener('change', (e) => {
+  uf2File = e.target.files[0] || null;
+  updateFlashReady();
+});
+
+connectBtn.addEventListener('click', async () => {
+  try {
+    boardDirHandle = await window.showDirectoryPicker();
+    flashStatus.className = 'flash-status ok';
+    flashStatus.textContent = `Connected: "${boardDirHandle.name}". Make sure this is the RPI-RP2 drive.`;
+    updateFlashReady();
+  } catch (err) {
+    // user cancelled the picker — not an error worth surfacing
+  }
+});
+
+function updateFlashReady(){
+  flashBtn.disabled = !(boardDirHandle && uf2File);
+}
+
+flashBtn.addEventListener('click', async () => {
+  if (!boardDirHandle || !uf2File) return;
+  try {
+    flashStatus.className = 'flash-status';
+    flashStatus.textContent = 'Writing firmware…';
+    const fileHandle = await boardDirHandle.getFileHandle(uf2File.name, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(await uf2File.arrayBuffer());
+    await writable.close();
+    flashStatus.className = 'flash-status ok';
+    flashStatus.textContent = 'Firmware copied — the board should reboot and flash itself now.';
+  } catch (err) {
+    flashStatus.className = 'flash-status err';
+    flashStatus.textContent = 'Write failed: ' + err.message + ' — make sure you selected the RPI-RP2 drive itself.';
+  }
+});
+
+window.addEventListener('resize', drawWiring);
+renderPads();
+renderCode();
+</script>
+</body>
+</html>
