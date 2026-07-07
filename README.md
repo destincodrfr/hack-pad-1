@@ -1,3 +1,3 @@
 # hack-pad-1
-hi
- yoooooooooooooo treres nothing here yet
+Hi this is my macropad 
+please use responsibly 
